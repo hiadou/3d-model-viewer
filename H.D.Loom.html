@@ -69,9 +69,9 @@
     </style>
 </head>
 <body>
-    <div id="info">H.D. Loom 3D模型 - 拖拽旋转 / 滚轮缩放</div>
+    <div id="info">H.D.Loom 3D模型 - 拖拽旋转 / 滚轮缩放</div>
     <div id="loading">⏳ 加载模型中...</div>
-    <div id="error">❌ 模型加载失败<br/><span style="font-size:12px;">请确保 H.D. Loom.glb 文件在同一目录下</span></div>
+    <div id="error">❌ 模型加载失败<br/><span style="font-size:12px;">请确保 H.D.Loom.glb 文件在同一目录下</span></div>
     <div id="autoRotateHint">⏸ 自动旋转 (点击切换)</div>
 
     <!-- 引入 Three.js 核心库和扩展 -->
@@ -92,7 +92,7 @@
 
         // --- 初始化场景、相机、渲染器 ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0xffffff); // 白色背景
+        scene.background = new THREE.Color(0x1a1a2e); // 深色背景
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(5, 3, 8);
@@ -140,6 +140,10 @@
         const hemiLight = new THREE.HemisphereLight(0x4488ff, 0x002244, 0.6);
         scene.add(hemiLight);
 
+        // --- 地面网格辅助（可选）---
+        const gridHelper = new THREE.GridHelper(10, 20, 0x8888ff, 0x444466);
+        gridHelper.position.y = -1;
+        scene.add(gridHelper);
 
         // --- 加载模型 ---
         const loader = new GLTFLoader();
@@ -150,7 +154,7 @@
         const loadingEl = document.getElementById('loading');
         const errorEl = document.getElementById('error');
 
-        // 使用相对路径加载同目录下的 H.D. Loom.glb
+        // 使用相对路径加载同目录下的 H.D.Loom.glb
         let isLoaded = true; // 加载失败时设为 false，停止渲染
 
         const hintEl = document.getElementById('autoRotateHint');
@@ -159,7 +163,7 @@
             hintEl.textContent = controls.autoRotate ? '▶ 自动旋转中 (点击切换)' : '⏸ 已暂停 (点击切换)';
         }
         loader.load(
-            './H.D. Loom.glb',
+            './H.D.Loom.glb',
             function (gltf) {
                 const model = gltf.scene;
 
@@ -188,7 +192,7 @@
 
                 updateAutoRotateHint();
 
-                console.log('✅ H.D. Loom.glb 加载成功');
+                console.log('✅ H.D.Loom.glb 加载成功');
             },
             function (xhr) {
                 // 加载进度
