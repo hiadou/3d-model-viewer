@@ -51,7 +51,6 @@
     </style>
 </head>
 <body>
-    <!-- 修改后的提示文字 -->
     <div id="info">黄道婆织布机 3D模型-拖拽旋转/滚轮缩放</div>
     <div id="loading">⏳ 加载模型中...</div>
     <div id="error">❌ 模型加载失败<br/><span style="font-size:12px;">请确保 H.D.Loom.glb 文件在同一目录下</span></div>
@@ -116,6 +115,12 @@
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444466, 0.5);
         scene.add(hemiLight);
 
+        // --- 音频控制（方案A）---
+        const audio = new Audio('./background.mp3');  // 请将背景音乐文件命名为 background.mp3 并与本HTML放在同一目录
+        audio.loop = true;
+        audio.volume = 0.5;
+        let isPlaying = false;
+
         // --- 加载模型 ---
         const loader = new GLTFLoader();
         const dracoLoader = new DRACOLoader();
@@ -152,6 +157,7 @@
             }
         );
 
+        // --- 窗口自适应 ---
         window.addEventListener('resize', onWindowResize, false);
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -159,6 +165,7 @@
             renderer.setSize(window.innerWidth, window.innerHeight);
         }
 
+        // --- 动画循环 ---
         function animate() {
             requestAnimationFrame(animate);
             controls.update();
@@ -166,9 +173,26 @@
         }
         animate();
 
+        // --- 点击切换自动旋转 + 音乐播放/暂停 ---
         renderer.domElement.addEventListener('click', () => {
             controls.autoRotate = !controls.autoRotate;
+            
+            if (!isPlaying) {
+                audio.play().then(() => {
+                    isPlaying = true;
+                    console.log('🎵 背景音乐开始播放');
+                }).catch(e => {
+                    console.warn('❌ 音频播放失败（可能是浏览器限制）', e);
+                });
+            } else {
+                audio.pause();
+                isPlaying = false;
+                console.log('⏸️ 背景音乐暂停');
+            }
         });
+
+        // 提示用户交互（可选）
+        console.log('💡 点击画面即可切换自动旋转与背景音乐');
     </script>
 </body>
 </html>
