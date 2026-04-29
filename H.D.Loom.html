@@ -3,21 +3,20 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>黄道婆织布机</title>
+    <title>黄道婆织布机 - 展陈版</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
         #info {
             position: absolute;
-            bottom: 30px;
+            top: 20px;
             left: 50%;
             transform: translateX(-50%);
-            color: #555;
-            background: rgba(255,255,255,0.8);
-            padding: 8px 20px;
-            border-radius: 20px;
+            color: white;
+            background: rgba(0,0,0,0.6);
+            padding: 10px 20px;
+            border-radius: 8px;
             font-size: 14px;
             pointer-events: none;
-            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
             z-index: 10;
         }
         #loading {
@@ -32,6 +31,7 @@
             border-radius: 10px;
             z-index: 20;
             box-shadow: 0 4px 20px rgba(0,0,0,0.1);
+            transition: opacity 0.4s;
         }
         #error {
             position: absolute;
@@ -48,12 +48,31 @@
             text-align: center;
             box-shadow: 0 4px 20px rgba(0,0,0,0.15);
         }
+        #autoRotateHint {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            z-index: 10;
+            cursor: pointer;
+            transition: background 0.3s, opacity 0.5s;
+            user-select: none;
+        }
+        #autoRotateHint:hover {
+            background: rgba(0,0,0,0.8);
+        }
     </style>
 </head>
 <body>
-    <div id="info">黄道婆织布机 3D模型-拖拽旋转/滚轮缩放</div>
+    <div id="info">黄道婆织布机 3D模型 - 拖拽旋转 / 滚轮缩放</div>
     <div id="loading">⏳ 加载模型中...</div>
     <div id="error">❌ 模型加载失败<br/><span style="font-size:12px;">请确保 H.D.Loom.glb 文件在同一目录下</span></div>
+    <div id="autoRotateHint">▶ 自动旋转中 (点击切换)</div>
 
     <script type="importmap">
         {
@@ -115,11 +134,23 @@
         const hemiLight = new THREE.HemisphereLight(0xffffff, 0x444466, 0.5);
         scene.add(hemiLight);
 
-        // --- 音频控制（方案A）---
-        const audio = new Audio('./background.mp3');  // 请将背景音乐文件命名为 background.mp3 并与本HTML放在同一目录
+        // --- 音频（方案三：仅自动播放一次，作为环境音）---
+        const audio = new Audio('./background.mp3');
         audio.loop = true;
         audio.volume = 0.5;
-        let isPlaying = false;
+
+        function tryAutoPlayMusic() {
+            audio.play().catch(() => {
+                const firstClickHandler = () => {
+                    audio.play().catch(e => console.warn('音频播放失败', e));
+                    renderer.domElement.removeEventListener('click', firstClickHandler);
+                    hintEl.removeEventListener('click', firstClickHandler);
+                    console.log('💡 用户首次交互后音乐启动');
+                };
+                renderer.domElement.addEventListener('click', firstClickHandler);
+                hintEl.addEventListener('click', firstClickHandler);
+            });
+        }
 
         // --- 加载模型 ---
         const loader = new GLTFLoader();
@@ -129,6 +160,13 @@
 
         const loadingEl = document.getElementById('loading');
         const errorEl = document.getElementById('error');
+        const hintEl = document.getElementById('autoRotateHint');
+
+        function updateAutoRotateHint() {
+            hintEl.textContent = controls.autoRotate
+                ? '▶ 自动旋转中 (点击切换)'
+                : '⏸ 已暂停 (点击切换)';
+        }
 
         loader.load(
             './H.D.Loom.glb',
@@ -137,13 +175,24 @@
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 model.position.sub(center);
+
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
                 if (maxDim > 5) {
                     model.scale.multiplyScalar(5 / maxDim);
+                } else if (maxDim > 0 && maxDim < 1) {
+                    model.scale.multiplyScalar(1 / maxDim);
                 }
+
                 scene.add(model);
-                loadingEl.style.display = 'none';
+                dracoLoader.dispose();
+
+                loadingEl.style.opacity = '0';
+                setTimeout(() => { loadingEl.style.display = 'none'; }, 400);
+
+                updateAutoRotateHint();
+                tryAutoPlayMusic();
+
                 console.log('✅ H.D.Loom.glb 加载成功');
             },
             function (xhr) {
@@ -152,8 +201,11 @@
             },
             function (error) {
                 console.error('❌ 加载失败:', error);
-                loadingEl.style.display = 'none';
-                errorEl.style.display = 'block';
+                loadingEl.style.opacity = '0';
+                setTimeout(() => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'block';
+                }, 400);
             }
         );
 
@@ -173,26 +225,16 @@
         }
         animate();
 
-        // --- 点击切换自动旋转 + 音乐播放/暂停 ---
-        renderer.domElement.addEventListener('click', () => {
+        // --- 点击切换自动旋转（音乐不受影响）---
+        function toggleAutoRotate() {
             controls.autoRotate = !controls.autoRotate;
-            
-            if (!isPlaying) {
-                audio.play().then(() => {
-                    isPlaying = true;
-                    console.log('🎵 背景音乐开始播放');
-                }).catch(e => {
-                    console.warn('❌ 音频播放失败（可能是浏览器限制）', e);
-                });
-            } else {
-                audio.pause();
-                isPlaying = false;
-                console.log('⏸️ 背景音乐暂停');
-            }
-        });
+            updateAutoRotateHint();
+        }
 
-        // 提示用户交互（可选）
-        console.log('💡 点击画面即可切换自动旋转与背景音乐');
+        renderer.domElement.addEventListener('click', toggleAutoRotate);
+        hintEl.addEventListener('click', toggleAutoRotate);
+
+        console.log('💡 点击画面即可切换自动旋转，背景音乐将持续播放');
     </script>
 </body>
 </html>
