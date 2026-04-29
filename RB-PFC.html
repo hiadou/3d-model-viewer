@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>圆底植物质陶釜</title>
+    <title>圆底植物质陶釜 - 展陈版</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
         #info {
@@ -30,6 +30,7 @@
             padding: 20px 30px;
             border-radius: 10px;
             z-index: 20;
+            transition: opacity 0.4s;
         }
         #error {
             position: absolute;
@@ -63,18 +64,14 @@
         #autoRotateHint:hover {
             background: rgba(0,0,0,0.8);
         }
-        #loading {
-            transition: opacity 0.4s;
-        }
     </style>
 </head>
 <body>
     <div id="info">圆底植物质陶釜 3D模型 - 拖拽旋转 / 滚轮缩放</div>
     <div id="loading">⏳ 加载模型中...</div>
     <div id="error">❌ 模型加载失败<br/><span style="font-size:12px;">请确保 RB-PFC.glb 文件在同一目录下</span></div>
-    <div id="autoRotateHint">⏸ 自动旋转 (点击切换)</div>
+    <div id="autoRotateHint">▶ 自动旋转中 (点击切换)</div>
 
-    <!-- 引入 Three.js 核心库和扩展 -->
     <script type="importmap">
         {
             "imports": {
@@ -92,7 +89,7 @@
 
         // --- 初始化场景、相机、渲染器 ---
         const scene = new THREE.Scene();
-        scene.background = new THREE.Color(0x1a1a2e); // 深色背景
+        scene.background = new THREE.Color(0x1a1a2e);
 
         const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
         camera.position.set(5, 3, 8);
@@ -116,40 +113,49 @@
         controls.target.set(0, 0, 0);
 
         // --- 灯光 ---
-        // 环境光
         const ambientLight = new THREE.AmbientLight(0x404060, 0.5);
         scene.add(ambientLight);
 
-        // 主光 - 方向光
         const dirLight = new THREE.DirectionalLight(0xffffff, 1.5);
         dirLight.position.set(5, 10, 7);
         dirLight.castShadow = true;
         scene.add(dirLight);
 
-        // 辅助背光
         const backLight = new THREE.DirectionalLight(0x4488ff, 0.8);
         backLight.position.set(-5, 0, -5);
         scene.add(backLight);
 
-        // 补光
         const fillLight = new THREE.DirectionalLight(0xffaa44, 0.4);
         fillLight.position.set(-3, 2, 5);
         scene.add(fillLight);
 
-        // 半球光
         const hemiLight = new THREE.HemisphereLight(0x4488ff, 0x002244, 0.6);
         scene.add(hemiLight);
 
-        // --- 地面网格辅助（可选）---
+        // --- 地面网格辅助 ---
         const gridHelper = new THREE.GridHelper(10, 20, 0x8888ff, 0x444466);
         gridHelper.position.y = -1;
         scene.add(gridHelper);
 
-        // --- 音频控制（方案A：点击页面切换自动旋转与背景音乐）---
+        // --- 音频（方案三：仅自动播放一次，作为环境音）---
         const audio = new Audio('./background.mp3');
         audio.loop = true;
         audio.volume = 0.5;
-        let isPlaying = false;
+
+        // 尝试自动播放（浏览器可能阻止，需要用户交互）
+        function tryAutoPlayMusic() {
+            audio.play().catch(() => {
+                // 如果自动播放被阻止，监听首次点击播放
+                const firstClickHandler = () => {
+                    audio.play().catch(e => console.warn('音频播放失败', e));
+                    renderer.domElement.removeEventListener('click', firstClickHandler);
+                    hintEl.removeEventListener('click', firstClickHandler);
+                    console.log('用户首次交互后音乐启动');
+                };
+                renderer.domElement.addEventListener('click', firstClickHandler);
+                hintEl.addEventListener('click', firstClickHandler);
+            });
+        }
 
         // --- 加载模型 ---
         const loader = new GLTFLoader();
@@ -159,26 +165,24 @@
 
         const loadingEl = document.getElementById('loading');
         const errorEl = document.getElementById('error');
+        const hintEl = document.getElementById('autoRotateHint');
 
         let isLoaded = true;
 
-        const hintEl = document.getElementById('autoRotateHint');
-
         function updateAutoRotateHint() {
-            hintEl.textContent = controls.autoRotate ? '▶ 自动旋转中 (点击切换)' : '⏸ 已暂停 (点击切换)';
+            hintEl.textContent = controls.autoRotate
+                ? '▶ 自动旋转中 (点击切换)'
+                : '⏸ 已暂停 (点击切换)';
         }
 
         loader.load(
             './RB-PFC.glb',
             function (gltf) {
                 const model = gltf.scene;
-
-                // 自动居中模型
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 model.position.sub(center);
 
-                // 调整模型大小以适应视野
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
                 if (maxDim > 5) {
@@ -188,15 +192,15 @@
                 }
 
                 scene.add(model);
-
-                // 释放解码器资源
                 dracoLoader.dispose();
 
-                // 平滑隐藏加载提示
                 loadingEl.style.opacity = '0';
                 setTimeout(() => { loadingEl.style.display = 'none'; }, 400);
 
                 updateAutoRotateHint();
+
+                // 模型加载完成后，尝试自动播放音乐（环境音）
+                tryAutoPlayMusic();
 
                 console.log('✅ RB-PFC.glb 加载成功');
             },
@@ -215,7 +219,7 @@
             }
         );
 
-        // --- 窗口大小自适应 ---
+        // --- 窗口自适应 ---
         window.addEventListener('resize', onWindowResize, false);
         function onWindowResize() {
             camera.aspect = window.innerWidth / window.innerHeight;
@@ -232,42 +236,15 @@
         }
         animate();
 
-        // --- 点击切换自动旋转 + 音乐播放/暂停 ---
-        renderer.domElement.addEventListener('click', () => {
+        // --- 点击切换自动旋转（音乐不受影响）---
+        function toggleAutoRotate() {
             controls.autoRotate = !controls.autoRotate;
             updateAutoRotateHint();
+            // 音乐不在这里控制，保持播放状态
+        }
 
-            if (!isPlaying) {
-                audio.play().then(() => {
-                    isPlaying = true;
-                    console.log('🎵 背景音乐开始播放');
-                }).catch(e => {
-                    console.warn('❌ 音频播放失败（可能是浏览器限制）', e);
-                });
-            } else {
-                audio.pause();
-                isPlaying = false;
-                console.log('⏸️ 背景音乐暂停');
-            }
-        });
-
-        hintEl.addEventListener('click', () => {
-            controls.autoRotate = !controls.autoRotate;
-            updateAutoRotateHint();
-
-            if (!isPlaying) {
-                audio.play().then(() => {
-                    isPlaying = true;
-                    console.log('🎵 背景音乐开始播放');
-                }).catch(e => {
-                    console.warn('❌ 音频播放失败（可能是浏览器限制）', e);
-                });
-            } else {
-                audio.pause();
-                isPlaying = false;
-                console.log('⏸️ 背景音乐暂停');
-            }
-        });
+        renderer.domElement.addEventListener('click', toggleAutoRotate);
+        hintEl.addEventListener('click', toggleAutoRotate);
     </script>
 </body>
 </html>
