@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>RB-PFC 3D模型查看器</title>
+    <title>圆底植物质陶釜</title>
     <style>
         body { margin: 0; overflow: hidden; font-family: Arial, sans-serif; }
         #info {
@@ -45,12 +45,34 @@
             z-index: 30;
             text-align: center;
         }
+        #autoRotateHint {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0,0,0,0.5);
+            padding: 8px 16px;
+            border-radius: 20px;
+            font-size: 13px;
+            z-index: 10;
+            cursor: pointer;
+            transition: background 0.3s, opacity 0.5s;
+            user-select: none;
+        }
+        #autoRotateHint:hover {
+            background: rgba(0,0,0,0.8);
+        }
+        #loading {
+            transition: opacity 0.4s;
+        }
     </style>
 </head>
 <body>
-    <div id="info">RB-PFC 3D模型 - 拖拽旋转 / 滚轮缩放</div>
+    <div id="info">圆底植物质陶釜 3D模型 - 拖拽旋转 / 滚轮缩放</div>
     <div id="loading">⏳ 加载模型中...</div>
     <div id="error">❌ 模型加载失败<br/><span style="font-size:12px;">请确保 RB-PFC.glb 文件在同一目录下</span></div>
+    <div id="autoRotateHint">⏸ 自动旋转 (点击切换)</div>
 
     <!-- 引入 Three.js 核心库和扩展 -->
     <script type="importmap">
@@ -123,6 +145,12 @@
         gridHelper.position.y = -1;
         scene.add(gridHelper);
 
+        // --- 音频控制（方案A：点击页面切换自动旋转与背景音乐）---
+        const audio = new Audio('./background.mp3');
+        audio.loop = true;
+        audio.volume = 0.5;
+        let isPlaying = false;
+
         // --- 加载模型 ---
         const loader = new GLTFLoader();
         const dracoLoader = new DRACOLoader();
@@ -132,40 +160,58 @@
         const loadingEl = document.getElementById('loading');
         const errorEl = document.getElementById('error');
 
-        // 使用相对路径加载同目录下的 RB-PFC.glb
+        let isLoaded = true;
+
+        const hintEl = document.getElementById('autoRotateHint');
+
+        function updateAutoRotateHint() {
+            hintEl.textContent = controls.autoRotate ? '▶ 自动旋转中 (点击切换)' : '⏸ 已暂停 (点击切换)';
+        }
+
         loader.load(
             './RB-PFC.glb',
             function (gltf) {
                 const model = gltf.scene;
-                
+
                 // 自动居中模型
                 const box = new THREE.Box3().setFromObject(model);
                 const center = box.getCenter(new THREE.Vector3());
                 model.position.sub(center);
-                
+
                 // 调整模型大小以适应视野
                 const size = box.getSize(new THREE.Vector3());
                 const maxDim = Math.max(size.x, size.y, size.z);
                 if (maxDim > 5) {
                     model.scale.multiplyScalar(5 / maxDim);
+                } else if (maxDim > 0 && maxDim < 1) {
+                    model.scale.multiplyScalar(1 / maxDim);
                 }
-                
+
                 scene.add(model);
-                
-                // 隐藏加载提示
-                loadingEl.style.display = 'none';
-                
+
+                // 释放解码器资源
+                dracoLoader.dispose();
+
+                // 平滑隐藏加载提示
+                loadingEl.style.opacity = '0';
+                setTimeout(() => { loadingEl.style.display = 'none'; }, 400);
+
+                updateAutoRotateHint();
+
                 console.log('✅ RB-PFC.glb 加载成功');
             },
             function (xhr) {
-                // 加载进度
                 const percent = Math.round((xhr.loaded / xhr.total) * 100);
                 loadingEl.textContent = `⏳ 加载中... ${percent}%`;
             },
             function (error) {
                 console.error('❌ 加载失败:', error);
-                loadingEl.style.display = 'none';
-                errorEl.style.display = 'block';
+                loadingEl.style.opacity = '0';
+                setTimeout(() => {
+                    loadingEl.style.display = 'none';
+                    errorEl.style.display = 'block';
+                }, 400);
+                isLoaded = false;
             }
         );
 
@@ -180,14 +226,47 @@
         // --- 动画循环 ---
         function animate() {
             requestAnimationFrame(animate);
+            if (!isLoaded) return;
             controls.update();
             renderer.render(scene, camera);
         }
         animate();
 
-        // 点击切换自动旋转
+        // --- 点击切换自动旋转 + 音乐播放/暂停 ---
         renderer.domElement.addEventListener('click', () => {
             controls.autoRotate = !controls.autoRotate;
+            updateAutoRotateHint();
+
+            if (!isPlaying) {
+                audio.play().then(() => {
+                    isPlaying = true;
+                    console.log('🎵 背景音乐开始播放');
+                }).catch(e => {
+                    console.warn('❌ 音频播放失败（可能是浏览器限制）', e);
+                });
+            } else {
+                audio.pause();
+                isPlaying = false;
+                console.log('⏸️ 背景音乐暂停');
+            }
+        });
+
+        hintEl.addEventListener('click', () => {
+            controls.autoRotate = !controls.autoRotate;
+            updateAutoRotateHint();
+
+            if (!isPlaying) {
+                audio.play().then(() => {
+                    isPlaying = true;
+                    console.log('🎵 背景音乐开始播放');
+                }).catch(e => {
+                    console.warn('❌ 音频播放失败（可能是浏览器限制）', e);
+                });
+            } else {
+                audio.pause();
+                isPlaying = false;
+                console.log('⏸️ 背景音乐暂停');
+            }
         });
     </script>
 </body>
