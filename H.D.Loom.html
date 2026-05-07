@@ -71,11 +71,30 @@
         #autoRotateHint:hover {
             background: rgba(0,0,0,0.8);
         }
+        #fullscreenBtn {
+            position: absolute;
+            top: 16px; right: 16px;
+            width: 40px; height: 40px;
+            background: rgba(0,0,0,0.5);
+            border-radius: 50%;
+            display: flex; align-items: center; justify-content: center;
+            color: white;
+            font-size: 20px;
+            cursor: pointer;
+            z-index: 10;
+            transition: background 0.3s;
+            user-select: none;
+            border: none;
+            outline: none;
+            line-height: 1;
+        }
+        #fullscreenBtn:hover { background: rgba(0,0,0,0.8); }
     </style>
 </head>
 <body>
     <div id="bg"></div>
     <div id="info">黄道婆织布机 3D模型 - 拖拽旋转 / 滚轮缩放</div>
+    <div id="fullscreenBtn" title="全屏">⛶</div>
     <div id="loading">⏳ 加载模型中...</div>
     <div id="error">❌ 模型加载失败<br/><span style="font-size:12px;">请确保 H.D.Loom.glb 文件在同一目录下</span></div>
     <div id="autoRotateHint">▶ 自动旋转中 (点击切换)</div>
@@ -239,6 +258,28 @@
 
         renderer.domElement.addEventListener('click', toggleAutoRotate);
         hintEl.addEventListener('click', toggleAutoRotate);
+
+        // --- 全屏切换 ---
+        const fullscreenBtn = document.getElementById('fullscreenBtn');
+
+        function toggleFullscreen() {
+            if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+                const el = document.documentElement;
+                (el.requestFullscreen || el.webkitRequestFullscreen).call(el);
+            } else {
+                (document.exitFullscreen || document.webkitExitFullscreen).call(document);
+            }
+        }
+
+        function updateFullscreenIcon() {
+            const isFull = document.fullscreenElement || document.webkitFullscreenElement;
+            fullscreenBtn.textContent = isFull ? '✕' : '⛶';
+            fullscreenBtn.title = isFull ? '退出全屏' : '全屏';
+        }
+
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+        document.addEventListener('fullscreenchange', updateFullscreenIcon);
+        document.addEventListener('webkitfullscreenchange', updateFullscreenIcon);
 
         console.log('💡 点击画面即可切换自动旋转，背景音乐将持续播放');
     </script>
