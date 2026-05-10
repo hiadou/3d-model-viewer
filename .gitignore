@@ -1,0 +1,6 @@
+dist/
+bundle.html
+node_modules/
+ledong-exhibition/
+.DS_Store
+*.log
