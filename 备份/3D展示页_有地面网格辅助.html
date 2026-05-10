@@ -1,0 +1,402 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>3D 模型展示器 (.glb)</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+
+        #info {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: white;
+            background: rgba(0, 0, 0, 0.6);
+            padding: 12px 24px;
+            border-radius: 30px;
+            backdrop-filter: blur(5px);
+            font-size: 14px;
+            pointer-events: none;
+            z-index: 10;
+            text-align: center;
+        }
+
+        #controls-hint {
+            position: absolute;
+            bottom: 30px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255, 255, 255, 0.7);
+            background: rgba(0, 0, 0, 0.4);
+            padding: 8px 20px;
+            border-radius: 20px;
+            font-size: 13px;
+            backdrop-filter: blur(4px);
+            z-index: 10;
+            pointer-events: none;
+        }
+
+        #drop-zone {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background: #1a1a2e;
+            color: white;
+            z-index: 20;
+            transition: opacity 0.5s ease;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        #drop-zone.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #drop-zone .icon {
+            font-size: 60px;
+            margin-bottom: 10px;
+        }
+
+        #drop-zone p {
+            font-size: 18px;
+            margin: 0;
+        }
+
+        #drop-zone .sub {
+            font-size: 14px;
+            opacity: 0.7;
+        }
+
+        #drop-zone.drag-over {
+            background: #16213e;
+            border: 3px dashed #e94560;
+        }
+
+        #file-input {
+            display: none;
+        }
+
+        #load-btn {
+            background: #e94560;
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 30px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.3s;
+            margin-top: 5px;
+        }
+
+        #load-btn:hover {
+            background: #c73650;
+        }
+
+        @media (max-width: 600px) {
+            #info {
+                font-size: 12px;
+                padding: 8px 16px;
+                top: 10px;
+            }
+            #drop-zone .icon {
+                font-size: 40px;
+            }
+            #drop-zone p {
+                font-size: 16px;
+            }
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 初始拖放区域 -->
+    <div id="drop-zone">
+        <div class="icon">📦</div>
+        <p>拖拽 .glb 文件到此处</p>
+        <p class="sub">或者点击下方按钮选择文件</p>
+        <button id="load-btn">选择文件</button>
+        <input type="file" id="file-input" accept=".glb,.gltf" />
+    </div>
+
+    <!-- 顶部信息 -->
+    <div id="info">🎯 3D 模型展示器</div>
+
+    <!-- 底部控制提示 -->
+    <div id="controls-hint">🖱 鼠标拖拽旋转 · 滚轮缩放 · 右键平移</div>
+
+    <!-- 引入 Three.js 核心库和扩展 -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+
+    <script type="module">
+        import * as THREE from 'three';
+        import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+        import { GLTFLoader } from 'three/addons/loaders/GLTFLoader.js';
+        import { DRACOLoader } from 'three/addons/loaders/DRACOLoader.js';
+
+        // --- 初始化场景、相机、渲染器 ---
+        const scene = new THREE.Scene();
+        scene.background = new THREE.Color(0x1a1a2e); // 深色背景
+
+        const camera = new THREE.PerspectiveCamera(45, window.innerWidth / window.innerHeight, 0.1, 1000);
+        camera.position.set(5, 5, 5);
+        camera.lookAt(0, 0, 0);
+
+        const renderer = new THREE.WebGLRenderer({ antialias: true });
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        renderer.shadowMap.enabled = true; // 开启阴影
+        renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+        renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+        document.body.appendChild(renderer.domElement);
+
+        // --- 控制器 (允许用户交互) ---
+        const controls = new OrbitControls(camera, renderer.domElement);
+        controls.enableDamping = true; // 启用惯性
+        controls.dampingFactor = 0.05;
+        controls.screenSpacePanning = true;
+        controls.minDistance = 0.5;
+        controls.maxDistance = 50;
+        controls.target.set(0, 1, 0);
+
+        // --- 灯光系统 (让模型看起来立体) ---
+
+        // 1. 环境光 - 提供基础照明
+        const ambientLight = new THREE.AmbientLight(0x404060);
+        scene.add(ambientLight);
+
+        // 2. 主光源 - 产生主要阴影和亮度 (从左上角照射)
+        const mainLight = new THREE.DirectionalLight(0xffffff, 2);
+        mainLight.position.set(5, 10, 7);
+        mainLight.castShadow = true;
+        mainLight.shadow.mapSize.width = 1024;
+        mainLight.shadow.mapSize.height = 1024;
+        const d = 10;
+        mainLight.shadow.camera.left = -d;
+        mainLight.shadow.camera.right = d;
+        mainLight.shadow.camera.top = d;
+        mainLight.shadow.camera.bottom = -d;
+        mainLight.shadow.camera.near = 1;
+        mainLight.shadow.camera.far = 15;
+        scene.add(mainLight);
+
+        // 3. 辅助背光 - 照亮暗部
+        const backLight = new THREE.DirectionalLight(0xffaa88, 0.8);
+        backLight.position.set(-5, 2, -5);
+        scene.add(backLight);
+
+        // 4. 补光 - 从右侧补充
+        const fillLight = new THREE.DirectionalLight(0x88aaff, 0.5);
+        fillLight.position.set(-3, 1, 5);
+        scene.add(fillLight);
+
+        // 可选：显示灯光位置的小助手 (调试用，可注释掉)
+        // const helper = new THREE.DirectionalLightHelper(mainLight, 1);
+        // scene.add(helper);
+
+        // --- 辅助元素 (让场景有空间感) ---
+
+        // 地面网格 (帮助感知位置和尺度)
+        const gridHelper = new THREE.GridHelper(10, 20, 0x88aaff, 0x445566);
+        gridHelper.position.y = -0.01;
+        scene.add(gridHelper);
+
+        // 一个半透明的辅助圆盘 (让阴影更明显)
+        const groundGeometry = new THREE.CircleGeometry(5, 32);
+        const groundMaterial = new THREE.MeshStandardMaterial({
+            color: 0x2a2a4a,
+            transparent: true,
+            opacity: 0.3,
+            side: THREE.DoubleSide
+        });
+        const ground = new THREE.Mesh(groundGeometry, groundMaterial);
+        ground.rotation.x = -Math.PI / 2;
+        ground.position.y = -0.01;
+        ground.receiveShadow = true;
+        scene.add(ground);
+
+        // --- 加载器设置 ---
+
+        // Draco 解码器 (用于压缩过的 .glb 文件)
+        const dracoLoader = new DRACOLoader();
+        dracoLoader.setDecoderPath('https://www.gstatic.com/draco/versioned/decoders/1.5.6/');
+
+        const loader = new GLTFLoader();
+        loader.setDRACOLoader(dracoLoader);
+
+        // --- 存储当前模型以便后续替换 ---
+        let currentModel = null;
+
+        // --- 加载模型函数 ---
+        function loadModel(url) {
+            // 移除旧模型
+            if (currentModel) {
+                scene.remove(currentModel);
+                // 简单清理几何体和材质 (可选)
+                currentModel.traverse((child) => {
+                    if (child.isMesh) {
+                        child.geometry.dispose();
+                        if (Array.isArray(child.material)) {
+                            child.material.forEach(m => m.dispose());
+                        } else {
+                            child.material.dispose();
+                        }
+                    }
+                });
+                currentModel = null;
+            }
+
+            // 显示加载状态
+            document.getElementById('info').textContent = '⏳ 加载中...';
+
+            loader.load(
+                url,
+                (gltf) => {
+                    const model = gltf.scene;
+
+                    // 让模型居中并适当缩放
+                    const box = new THREE.Box3().setFromObject(model);
+                    const size = box.getSize(new THREE.Vector3()).length();
+                    const center = box.getCenter(new THREE.Vector3());
+
+                    // 如果模型太大或太小，自动缩放
+                    const targetSize = 3;
+                    if (size > 0) {
+                        const scale = targetSize / size;
+                        model.scale.set(scale, scale, scale);
+                    }
+
+                    // 将模型移动到底部中心 (Y轴对齐到地面)
+                    model.position.set(-center.x * (size > 0 ? targetSize / size : 1),
+                        -center.y * (size > 0 ? targetSize / size : 1),
+                        -center.z * (size > 0 ? targetSize / size : 1));
+
+                    // 让所有网格投射和接收阴影
+                    model.traverse((child) => {
+                        if (child.isMesh) {
+                            child.castShadow = true;
+                            child.receiveShadow = true;
+                        }
+                    });
+
+                    scene.add(model);
+                    currentModel = model;
+
+                    // 重置相机视角到合适位置
+                    const distance = targetSize * 2.5;
+                    camera.position.set(distance * 0.7, distance * 0.5, distance * 0.7);
+                    controls.target.set(0, targetSize * 0.3, 0);
+                    controls.update();
+
+                    document.getElementById('info').textContent = '✅ ' + (url.split('/').pop() || '模型') + ' 加载成功';
+                },
+                (xhr) => {
+                    // 加载进度
+                    const percent = Math.round((xhr.loaded / xhr.total) * 100);
+                    if (xhr.total > 0) {
+                        document.getElementById('info').textContent = `⏳ 加载中... ${percent}%`;
+                    }
+                },
+                (error) => {
+                    console.error('加载失败:', error);
+                    document.getElementById('info').textContent = '❌ 加载失败，请检查文件或控制台错误信息';
+                }
+            );
+        }
+
+        // --- 文件处理逻辑 ---
+
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+        const loadBtn = document.getElementById('load-btn');
+
+        // 点击按钮触发文件选择
+        loadBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            fileInput.click();
+        });
+
+        // 文件选择后处理
+        fileInput.addEventListener('change', (event) => {
+            const file = event.target.files[0];
+            if (file) {
+                const url = URL.createObjectURL(file);
+                loadModel(url);
+                dropZone.classList.add('hidden');
+            }
+        });
+
+        // 拖拽事件
+        dropZone.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            dropZone.classList.add('drag-over');
+        });
+
+        dropZone.addEventListener('dragleave', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+        });
+
+        dropZone.addEventListener('drop', (e) => {
+            e.preventDefault();
+            dropZone.classList.remove('drag-over');
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                const file = files[0];
+                if (file.name.endsWith('.glb') || file.name.endsWith('.gltf')) {
+                    const url = URL.createObjectURL(file);
+                    loadModel(url);
+                    dropZone.classList.add('hidden');
+                } else {
+                    alert('请拖入 .glb 或 .gltf 文件');
+                }
+            }
+        });
+
+        // 你也可以直接点击 dropZone 任意位置选择文件 (可选)
+        dropZone.addEventListener('click', () => {
+            fileInput.click();
+        });
+
+        // --- 窗口自适应 ---
+        window.addEventListener('resize', onWindowResize, false);
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- 动画循环 ---
+        function animate() {
+            requestAnimationFrame(animate);
+            controls.update(); // 更新控制器 (用于阻尼惯性)
+            renderer.render(scene, camera);
+        }
+
+        animate();
+
+        // 加载一个默认模型作为示例 (使用 Three.js 官方示例模型)
+        // 如果不需要默认模型，可以注释掉下面这行
+        loadModel('https://threejs.org/examples/models/gltf/DamagedHelmet/glTF/DamagedHelmet.gltf');
+
+        console.log('🎯 3D 模型展示器已启动！拖拽 .glb 文件到页面即可加载。');
+    </script>
+</body>
+</html>
