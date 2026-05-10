@@ -5,5 +5,5 @@ ledong-exhibition/
 .DS_Store
 *.log
 备份/
-*.png
-*.jpg
+/*.png
+/*.jpg
