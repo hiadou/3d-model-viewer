@@ -13,8 +13,11 @@ URL 编码的引用路径，跑 node --check，然后提交（加 --push 才推�
 
 约定：
   * 已有同名 .webp  → 直接沿用，不重压（外部工具压好的文件优先）
-  * 只有 .png       → 用 Pillow 按 --quality 压缩
+  * 只有 .png       → 用 Pillow 压缩，默认**无损 VP8L**（逐像素保真），
+                      压完会回读一次核对；要更小体积加 --lossy
   * 脚本不会自动 pip install（遵循 D:\\AI\\CLAUDE.md 的环境治理规则）
+
+多花的体积：无损比有损大约 8~14 倍，但仍比原 PNG 小约 40~45%。
 """
 
 import argparse
@@ -81,8 +84,9 @@ def ref_path(name_without_ext, ext):
 def has_meaningful_alpha(im, threshold):
     """判断 alpha 通道是否真的有用。
 
-    全 255（完全不透明）或仅在 threshold 以上轻微波动（如 253/255，肉眼不可见）
-    都算无用，可以降成 RGB 省体积。
+    默认 threshold=255 时只有「完全不透明」才会被判为无用——此时丢掉 alpha
+    不改变任何一个像素，是无损的。调低阈值（如 250）会把 253/255 这类
+    肉眼不可见的轻微波动也算作无用，能省 4~8% 体积，但严格说是有损的。
     """
     if im.mode == 'P':
         im = im.convert('RGBA')
@@ -92,12 +96,32 @@ def has_meaningful_alpha(im, threshold):
     return lo < threshold, (lo, hi)
 
 
-def compress(png, webp, quality, alpha_threshold):
+def pixels_equal(a, b, keep_alpha):
+    """逐像素比较。丢掉那个全不透明的 alpha 通道不算差异。"""
+    fmt = 'RGBA' if keep_alpha else 'RGB'
+    return a.convert(fmt).tobytes() == b.convert(fmt).tobytes()
+
+
+def compress(png, webp, quality, alpha_threshold, lossless=True):
+    """转成 webp。无损模式下回读一次，确认与原图逐像素一致。
+
+    无损用 VP8L；exact=True 保证全透明像素下的 RGB 也不被改写（libwebp
+    默认会丢，实测这会让带透明渐变的图不再逐像素一致）。
+    """
     from PIL import Image
     with Image.open(png) as src:
         keep_alpha, rng = has_meaningful_alpha(src, alpha_threshold)
-        src.convert('RGBA' if keep_alpha else 'RGB').save(
-            webp, 'WEBP', quality=quality, method=6)
+        if lossless:
+            src.convert('RGBA' if keep_alpha else 'RGB').save(
+                webp, 'WEBP', lossless=True, method=6, quality=100,
+                exact=True)
+        else:
+            src.convert('RGBA' if keep_alpha else 'RGB').save(
+                webp, 'WEBP', lossless=False, method=6, quality=quality)
+        if lossless:
+            with Image.open(webp) as back:
+                if not pixels_equal(src, back, keep_alpha):
+                    die('%s 声称无损但回读不一致，已中止' % webp)
     return keep_alpha, rng
 
 
@@ -189,10 +213,13 @@ def collect_pairs(img_dir):
 
 def main():
     ap = argparse.ArgumentParser(description='藏品图 PNG → WebP 迁移')
+    ap.add_argument('--lossy', action='store_true',
+                    help='改用有损 VP8（默认是无损 VP8L，逐像素保真）')
     ap.add_argument('--quality', type=int, default=80,
-                    help='webp 质量，默认 80（仅对需要压缩的 png 生效）')
-    ap.add_argument('--alpha-threshold', type=int, default=250,
-                    help='alpha 最小值低于此值才保留透明通道，默认 250')
+                    help='有损模式的质量，默认 80（--lossy 时才生效）')
+    ap.add_argument('--alpha-threshold', type=int, default=255,
+                    help='alpha 最小值低于此值才保留透明通道。默认 255，'
+                         '即只有全不透明才丢弃（无损）；调低可省 4~8% 但有损')
     ap.add_argument('--img-dir', default=IMG_DIR, help='图片目录，默认 ' + IMG_DIR)
     ap.add_argument('--dry-run', action='store_true',
                     help='只报告将要做的改动，不写文件、不碰 git')
@@ -279,16 +306,17 @@ def main():
                                      human(os.path.getsize(png))))
             continue
         keep_alpha, rng = compress(png, webp, args.quality,
-                                   args.alpha_threshold)
+                                   args.alpha_threshold,
+                                   lossless=not args.lossy)
         b, a = os.path.getsize(png), os.path.getsize(webp)
         sizes_before += b
         sizes_after += a
         note = 'RGBA' if keep_alpha else 'RGB'
         if keep_alpha and rng:
             note += ' (alpha %d-%d)' % rng
-        print('  压缩  %s  %s → %s  %s  q%d'
-              % (os.path.basename(png)[-14:], human(b), human(a), note,
-                 args.quality))
+        mode = '有损 q%d' % args.quality if args.lossy else '无损 VP8L'
+        print('  压缩  %s  %s → %s  %s  %s'
+              % (os.path.basename(png)[-14:], human(b), human(a), note, mode))
         validate(webp, png)
 
     if not args.dry_run and sizes_before:
@@ -360,7 +388,8 @@ def main():
         if m:
             codes.append(m.group(1))
     rewrote = len(replaced) - len(unref)
-    title = '图片优化：%d 件藏品图改用 webp' % len(replaced)
+    title = '图片优化：%d 件藏品图改用%s webp' % (
+        len(replaced), '有损' if args.lossy else '无损')
     if rewrote:
         title += ' 并同步引用'
     body = ['%s 合计 %s → %s' % (INDEX, human(sizes_before), human(sizes_after))
