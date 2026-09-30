@@ -13,3 +13,10 @@ bundle.html
 备份/
 /*.png
 /*.jpg
+
+# —— 内部管理文档（仅本机保留，暂不对外发布）——
+# 仓库是 public，进库即公开；站点的 README/协作约定等先只留在本机，
+# 等站点成熟后再决定是否随仓库发布。
+/README.md
+/CLAUDE.md
+/.claude/

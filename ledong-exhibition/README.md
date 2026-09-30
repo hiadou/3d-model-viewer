@@ -1,7 +1,5 @@
 > 本目录是「白沙河谷生态博物馆」官网的**源码**（React + TypeScript + Vite）。
-> 站点结构、构建三步、发布流程、内容维护速查与已知坑，见仓库根目录的 [`../README.md`](../README.md)。
-> 常用命令：`npx vite build`（打包到 `dist/`）→ `npx html-inline -i dist/index.html -o ..\index.html -b dist --ignore-images`。
-> 注意：本目录当前**未纳入 Git**，改动不会被提交。
+> 构建：在仓库根目录执行 `pwsh -File tools\build.ps1`，会打包本目录并把结果内联进根目录的 `index.html`。
 
 # React + TypeScript + Vite
 
