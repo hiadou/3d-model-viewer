@@ -14,7 +14,7 @@
 | 路径 | 说明 | Git |
 | --- | --- | --- |
 | `index.html` | **线上文件**：单文件产物（JS/CSS 全内联） | 已跟踪 |
-| `ledong-exhibition/` | **源码**：React 19 + TypeScript + Vite，改内容改这里 | ⚠️ 未跟踪 |
+| `ledong-exhibition/` | **源码**：React 19 + TypeScript + Vite，改内容改这里 | 已跟踪 |
 | `img/garden/` | 园内景观图 12 张（含首页大图 `白沙河谷大门.webp`） | 已跟踪 |
 | `img/hall/` | 馆内景观图 17 张 | 已跟踪 |
 | `img/collections/` | 数字藏品图 6 张 | 已跟踪 |
@@ -53,6 +53,7 @@
 ### 前置
 
 - Node.js（本机 v22），依赖已装在 `ledong-exhibition/node_modules`；缺失时在该目录执行 `npm i`。
+  依赖以 `package-lock.json` 为准（npm）；同目录的 `pnpm-lock.yaml`、`pnpm-workspace.yaml` 是历史遗留，可忽略。
 - 只替换同名文件（图片、模型、`icon.ico` 文件名不变）时**不需要重新构建**，推资源文件即可；
   新增或改名的资源要改源码里的引用再构建，因为引用路径内联在 `index.html` 里。
 
@@ -147,9 +148,10 @@ git push origin main
 
 ## 已知问题与风险
 
-1. **源码不在版本库里**：`.gitignore` 忽略了 `ledong-exhibition/`，GitHub 上只有产物没有源码，
-   源码只存在于本机 `D:\AI\网页\ledong-exhibition`。本机一旦丢失/损坏就无法重建站点，
-   建议把源码纳入版本管理（或至少定期打包备份到 `备份/` 之外的地方）。
+1. **源码已于 2026-09-30 纳入版本管理**（此前 `.gitignore` 忽略了整个 `ledong-exhibition/`，
+   仓库里只有产物没有源码）。现在 `.gitignore` 只忽略该目录下的 `node_modules/`、`dist/`、
+   `.parcel-cache/`、`*.tsbuildinfo` 等产物；其余源码、配置、`package-lock.json` 都在库里。
+   仍不要忘记：改了源码必须重新构建并提交 `index.html`，否则线上不会变。
 2. **`npm run build` 目前跑不通**：脚本是 `tsc -b && vite build`，而 `tsconfig.json` 的项目引用配置在
    TypeScript 6 下报 `TS5101`（`baseUrl` 已废弃）、`TS6306` / `TS6310`（引用项目需 `composite: true` 且不能禁用 emit）。
    现状是直接用 `npx vite build`（只打包、不做类型检查）。想单独做类型检查：

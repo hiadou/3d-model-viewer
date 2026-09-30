@@ -1,0 +1,59 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --background: 36 33% 97%;
+    --foreground: 20 14% 10%;
+    --card: 36 33% 99%;
+    --card-foreground: 20 14% 10%;
+    --popover: 36 33% 99%;
+    --popover-foreground: 20 14% 10%;
+    --primary: 15 60% 35%;
+    --primary-foreground: 36 33% 98%;
+    --secondary: 36 20% 92%;
+    --secondary-foreground: 20 14% 20%;
+    --muted: 36 20% 92%;
+    --muted-foreground: 20 8% 40%;
+    --accent: 25 70% 90%;
+    --accent-foreground: 15 60% 25%;
+    --destructive: 0 70% 50%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 30 20% 85%;
+    --input: 30 20% 85%;
+    --ring: 15 60% 35%;
+    --radius: 0.5rem;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-foreground;
+    font-family: 'Noto Sans SC', sans-serif;
+  }
+}
+
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: hsl(30, 15%, 75%); border-radius: 3px; }
+
+html { scroll-behavior: smooth; }
+
+.scrollbar-none { -ms-overflow-style: none; scrollbar-width: none; }
+.scrollbar-none::-webkit-scrollbar { display: none; }
+
+.decorative-line {
+  @apply h-px w-24 mx-auto;
+  background: linear-gradient(90deg, transparent, hsl(15, 60%, 35%), transparent);
+}
+
+.model-viewer-frame {
+  @apply w-full rounded-lg overflow-hidden border;
+  border-color: hsl(30, 20%, 85%);
+  aspect-ratio: 16/10;
+  background: hsl(36, 33%, 97%);
+}
