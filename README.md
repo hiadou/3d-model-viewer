@@ -57,12 +57,27 @@
 - 只替换同名文件（图片、模型、`icon.ico` 文件名不变）时**不需要重新构建**，推资源文件即可；
   新增或改名的资源要改源码里的引用再构建，因为引用路径内联在 `index.html` 里。
 
-### 构建三步
+### 构建：一条命令
+
+```powershell
+pwsh -File D:\AI\网页\tools\build.ps1
+```
+
+脚本串起整条链路并自检：`vite build` → `html-inline` 覆盖根目录 `index.html` → 自动补回 favicon 行 →
+校验（无 BOM、LF 换行、内联脚本过 `node --check`），最后打印前后 SHA256，产物没变化时会提示
+`byte-identical`。PowerShell 7 与 Windows PowerShell 5.1 下都验证过，结果一致
+（脚本刻意写成纯 ASCII，不受脚本文件编码影响）。
+
+它直接调用 `ledong-exhibition/node_modules/.bin/` 里的 `vite` / `html-inline`，不经过 `npx`：
+本机 `D:\nodejs\npx.ps1` 这个 shim 在被 `&` 调用时会算错参数偏移（把 `npx vite build` 变成 `px vite build`），
+直接调本地 bin 既绕开这个坑，也保证版本与 `package-lock.json` 一致。
+
+### 手动等价步骤（脚本不可用时）
 
 ```powershell
 # 1) 打包源码 → ledong-exhibition/dist/
 cd D:\AI\网页\ledong-exhibition
-npx vite build
+npx vite build                    # 注意：npx 必须在命令位置调用，不要写成 & npx …
 
 # 2) 内联 JS/CSS，直接覆盖线上文件（--ignore-images 保证图片仍走相对路径外链）
 npx html-inline -i dist/index.html -o ..\index.html -b dist --ignore-images
@@ -78,7 +93,7 @@ if (-not $html.Contains($link)) {
 }
 ```
 
-### 构建后校验
+### 构建后校验（`tools/build.ps1` 已自动执行）
 
 ```powershell
 # 无 BOM：前 3 字节应是 3C 21 64（<!d），不能是 EF BB BF
